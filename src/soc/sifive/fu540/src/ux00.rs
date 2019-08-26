@@ -6,6 +6,28 @@
 use crate::ddrregs;
 use crate::reg;
 use core::ptr;
+use core::fmt;
+use model::Driver;
+use uart::sifive::SiFive;
+
+pub struct WriteTo<'a> {
+    drv: &'a mut dyn Driver,
+}
+
+impl<'a> WriteTo<'a> {
+    pub fn new(drv: &'a mut dyn Driver) -> Self {
+        WriteTo { drv: drv }
+    }
+}
+
+impl<'a> fmt::Write for WriteTo<'a> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        match self.drv.pwrite(s.as_bytes(), 0) {
+            Err(_) => Err(fmt::Error),
+            _ => Ok(()),
+        }
+    }
+}
 
 // #define _REG32((reg:DDR_CTRL,p, i) (*(volatile u32 *)((p) + (i)))
 pub const DRAM_CLASS_OFFSET: u32 = 8;
@@ -38,13 +60,22 @@ pub const PHY_RX_CAL_DQ1_0_OFFSET: u64 = 16;
 // No idea why this is.
 // Index is a word offset.
 fn poke(Pointer: u32, Index: u32, Value: u32) -> () {
+    let uart0 = &mut SiFive::new(/*soc::UART0*/ 0x10010000, 115200);
+    let w = &mut WriteTo::new(uart0);
+    fmt::write(w, format_args!("poke {:x} {:x} {:x}\r\n", Pointer, Index, Value)).unwrap();
+
     let addr = (Pointer + (Index << 2)) as *mut u32;
     unsafe {
         ptr::write_volatile(addr, Value);
     }
+    fmt::write(w, format_args!("done\r\n")).unwrap();
 }
 
 fn poke64(Pointer: u32, Index: u32, Value: u64) -> () {
+    let uart0 = &mut SiFive::new(/*soc::UART0*/ 0x10010000, 115200);
+    let w = &mut WriteTo::new(uart0);
+    fmt::write(w, format_args!("poke64 {:x} {:x} {:x}\r\n", Pointer, Index, Value)).unwrap();
+
     let addr = (Pointer + (Index << 2)) as *mut u32;
     let addr1 = (Pointer + (Index << 2) + 4) as *mut u32;
     unsafe {
@@ -53,6 +84,7 @@ fn poke64(Pointer: u32, Index: u32, Value: u64) -> () {
         let v2: u32 = (Value) as u32;
         ptr::write_volatile(addr1, v2);
     }
+    fmt::write(w, format_args!("done\r\n")).unwrap();
 }
 
 fn set(Pointer: u32, Index: u32, Value: u32) -> () {
@@ -66,8 +98,14 @@ fn clr(Pointer: u32, Index: u32, Value: u32) -> () {
 }
 
 fn peek(Pointer: u32, Index: u32) -> u32 {
+    let uart0 = &mut SiFive::new(/*soc::UART0*/ 0x10010000, 115200);
+    let w = &mut WriteTo::new(uart0);
+    fmt::write(w, format_args!("peek {:x} {:x}\r\n", Pointer, Index)).unwrap();
+
     let addr = (Pointer + (Index << 2)) as *const u32;
-    unsafe { ptr::read_volatile(addr) }
+    let v = unsafe { ptr::read_volatile(addr) };
+    fmt::write(w, format_args!("done {:x}\r\n", v)).unwrap();
+    v
 }
 
 // #define _REG32((reg::DDR_CTRL,p, i) (*(volatile u32 *)((p) + (i)))
@@ -101,6 +139,7 @@ pub fn ux00ddr_start(filteraddr: u64, ddrend: u64) {
     //   // START register at ddrctl register base offset 0
     let regdata = peek(reg::DDR_CTRL, 0) | 1;
     poke(reg::DDR_CTRL, 0, regdata);
+    //peek(reg::DDR_CTRL, 0);
     // WAIT for initialization complete : bit 8 of INT_STATUS (DENALI_CTL_132) 0x210
     // 132 * 4
     loop {
@@ -191,6 +230,9 @@ pub fn ux00ddr_getdramclass() -> u32 {
 pub fn ux00ddr_phy_fixup() -> u64 {
     // return bitmask of failed lanes
 
+    let uart0 = &mut SiFive::new(/*soc::UART0*/ 0x10010000, 115200);
+    let w = &mut WriteTo::new(uart0);
+
     let ddrphyreg: u32 = reg::DDR_CTRL + 0x2000;
 
     let mut fails: u64 = 0;
@@ -218,16 +260,21 @@ pub fn ux00ddr_phy_fixup() -> u64 {
                 if failc0 || failc1 {
                     // good news: we can use fmt; skip this nonsense.
                     //if (fails==0) uart_puts((void*) UART0_CTRL_ADDR, "DDR error in fixing up \n");
+                    if fails == 0 {
+                        fmt::write(w, format_args!("DDR error in fixing up\r\n")).unwrap();
+                    }
                     fails |= (1 << dq);
-                    let mut slicelsc: u8 = 48;
-                    let mut slicemsc: u8 = 48;
-                    slicelsc += (dq % 10) as u8;
-                    slicemsc += (dq / 10) as u8;
+                    fmt::write(w, format_args!("S {}", dq)).unwrap();
                     //uart_puts((void*) UART0_CTRL_ADDR, "S ");
                     //uart_puts((void*) UART0_CTRL_ADDR, &slicemsc);
                     //uart_puts((void*) UART0_CTRL_ADDR, &slicelsc);
                     //if (failc0) uart_puts((void*) UART0_CTRL_ADDR, "U");
                     //else uart_puts((void*) UART0_CTRL_ADDR, "D");
+                    if failc0 {
+                        fmt::write(w, format_args!("U\r\n")).unwrap();
+                    } else {
+                        fmt::write(w, format_args!("D\r\n")).unwrap();
+                    }
                     //uart_puts((void*) UART0_CTRL_ADDR, "\n");
                 }
                 dq = dq + 1;
