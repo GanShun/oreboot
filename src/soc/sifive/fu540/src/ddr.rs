@@ -259,8 +259,9 @@ fn sdram_init() {
     ux00::ux00ddr_mask_port_command_error_interrupt();
 
     let ddr_end: u64 = reg::DRAM as u64 + ddr_size;
+    let ddr_bus_blocker: u64 = reg::DDR_BUS_BLOCKER as u64;
     uart0.pwrite(b"ux00::ux00ddr_start\r\n", 0).unwrap();
-    ux00::ux00ddr_start(0x100b8000, ddr_end);
+    ux00::ux00ddr_start(ddr_bus_blocker, ddr_end);
 
     uart0.pwrite(b"ux00::ux00ddr_phy_fixup\r\n", 0).unwrap();
     ux00::ux00ddr_phy_fixup();
