@@ -112,7 +112,7 @@ pub fn ux00ddr_start(filteraddr: u64, ddrend: u64) {
     }
 
     // Disable the BusBlocker in front of the controller AXI slave ports
-    let freg = peek(filteraddr as u32, 0);
+    let freg = filteraddr as u32;
     poke64(freg, 0, (0x0f00000000000000 | (ddrend >> 2)) as u64);
     //         volatile u64 *filterreg = (volatile uint64_t *)filteraddr;
     //   filterreg[0] = 0x0f00000000000000UL | (ddrend >> 2);
@@ -198,12 +198,12 @@ pub fn ux00ddr_phy_fixup() -> u64 {
     let mut dq: u32 = 0;
     for slice in 0..8 {
         // check errata condition
-        let regbase: u32 = slicebase;
+        let regbase: u32 = slicebase + 34;
         for reg in 0..4 {
             // what the hell?
-            let updownreg: u32 = peek((regbase + reg) << 2, ddrphyreg);
+            let updownreg: u32 = peek(ddrphyreg, (regbase + reg));
             for bit in 0..2 {
-                let mut phy_rx_cal_dqn_0_offset: u64 = 0;
+                let mut phy_rx_cal_dqn_0_offset: u64;
                 if bit == 0 {
                     phy_rx_cal_dqn_0_offset = PHY_RX_CAL_DQ0_0_OFFSET;
                 } else {

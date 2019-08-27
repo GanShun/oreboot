@@ -243,7 +243,7 @@ fn sdram_init() {
     ux00::ux00ddr_mask_port_command_error_interrupt();
 
     let ddr_end: u64 = reg::DRAM as u64 + ddr_size;
-    ux00::ux00ddr_start(ddr_size, ddr_end);
+    ux00::ux00ddr_start(0x100b8000, ddr_end);
 
     ux00::ux00ddr_phy_fixup();
 }
