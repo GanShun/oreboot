@@ -76,13 +76,14 @@ fn poke64(Pointer: u32, Index: u32, Value: u64) -> () {
     let w = &mut WriteTo::new(uart0);
     fmt::write(w, format_args!("poke64 {:x} {:x} {:x}\r\n", Pointer, Index, Value)).unwrap();
 
-    let addr = (Pointer + (Index << 2)) as *mut u32;
-    let addr1 = (Pointer + (Index << 2) + 4) as *mut u32;
+    let addr = (Pointer + (Index << 2)) as *mut u64;
+    //let addr1 = (Pointer + (Index << 2) + 4) as *mut u32;
     unsafe {
-        let v1: u32 = (Value >> 32) as u32;
-        ptr::write_volatile(addr, v1);
-        let v2: u32 = (Value) as u32;
-        ptr::write_volatile(addr1, v2);
+        ptr::write_volatile(addr, Value);
+        //let v2: u32 = (Value) as u32;
+        //ptr::write_volatile(addr1, v2);
+        //let v1: u32 = (Value >> 32) as u32;
+        //ptr::write_volatile(addr, v1);
     }
     fmt::write(w, format_args!("done\r\n")).unwrap();
 }
@@ -100,11 +101,12 @@ fn clr(Pointer: u32, Index: u32, Value: u32) -> () {
 fn peek(Pointer: u32, Index: u32) -> u32 {
     let uart0 = &mut SiFive::new(/*soc::UART0*/ 0x10010000, 115200);
     let w = &mut WriteTo::new(uart0);
-    fmt::write(w, format_args!("peek {:x} {:x}\r\n", Pointer, Index)).unwrap();
+    //fmt::write(w, format_args!("peek {:x} {:x}\r\n", Pointer, Index)).unwrap();
 
     let addr = (Pointer + (Index << 2)) as *const u32;
     let v = unsafe { ptr::read_volatile(addr) };
-    fmt::write(w, format_args!("done {:x}\r\n", v)).unwrap();
+    //fmt::write(w, format_args!("done {:x}\r\n", v)).unwrap();
+    fmt::write(w, format_args!("peek {:x} {:x} {:x}\r\n", Pointer, Index, v)).unwrap();
     v
 }
 
@@ -150,6 +152,9 @@ pub fn ux00ddr_start(filteraddr: u64, ddrend: u64) {
         }
     }
 
+    let uart0 = &mut SiFive::new(/*soc::UART0*/ 0x10010000, 115200);
+    let w = &mut WriteTo::new(uart0);
+    fmt::write(w, format_args!("ddrend >> 2 0x{:x}\r\n", ddrend)).unwrap();
     // Disable the BusBlocker in front of the controller AXI slave ports
     let freg = filteraddr as u32;
     poke64(freg, 0, (0x0f00000000000000 | (ddrend >> 2)) as u64);
